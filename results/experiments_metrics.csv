@@ -1,0 +1,17 @@
+scenario,patient,controller,Knee RMSE vs normative (deg),Peak swing flexion (deg),Swing flexion deficit (deg),Max stance excess flexion (deg),Strides with knee buckling (%),Toe scuffs per stride,Knee ROM (deg),Exo torque RMS (N·m),Exo peak torque (N·m),Exo positive work per stride (J),Patient torque RMS (N·m),Assistance ratio (%),Final fatigue (%),Final effort (%),Strides analysed
+main,mild,No assistance,4.56,60.74,0.26,9.231,0.0,0.0,61.69,0.0,0.0,0.0,31.253,0.0,12.249,100.0,32
+main,mild,Fixed impedance,1.95,61.103,-0.103,3.401,0.0,0.031,59.564,8.243,34.509,1.301,21.689,25.575,9.085,86.736,32
+main,mild,Cognitive adaptive,2.957,61.21,-0.21,6.031,0.0,0.031,60.536,5.419,53.673,0.294,25.836,13.3,10.388,92.882,32
+main,moderate,No assistance,14.447,59.548,1.452,34.093,100.0,0.0,64.466,0.0,0.0,0.0,30.18,0.0,18.234,100.0,32
+main,moderate,Fixed impedance,2.78,59.229,1.771,4.442,0.0,0.281,58.674,9.142,32.815,5.102,20.909,30.348,13.344,84.042,32
+main,moderate,Cognitive adaptive,3.919,58.159,2.841,7.807,0.0,0.0,59.005,5.968,24.719,1.654,25.943,14.682,16.251,93.197,32
+main,severe,No assistance,25.224,37.871,23.129,56.344,100.0,1.0,69.135,0.0,0.0,0.0,19.103,0.0,22.877,100.0,32
+main,severe,Fixed impedance,5.652,56.285,4.715,11.16,34.375,0.656,57.628,17.126,48.321,14.482,17.397,47.769,19.692,76.402,32
+main,severe,Cognitive adaptive,3.933,60.779,0.221,7.968,9.375,0.281,61.593,16.76,60.0,19.424,16.843,46.898,18.791,79.78,32
+main,stiff-knee,No assistance,4.949,56.156,4.844,9.548,0.0,1.0,58.466,0.0,0.0,0.0,34.644,0.0,13.352,100.0,32
+main,stiff-knee,Fixed impedance,2.901,57.666,3.334,2.936,0.0,0.906,56.255,8.241,35.557,8.404,24.349,23.498,9.632,87.379,32
+main,stiff-knee,Cognitive adaptive,2.476,61.49,-0.49,4.984,0.0,0.219,60.538,13.839,60.0,22.144,25.12,28.646,9.591,87.306,32
+fatigue,moderate,No assistance,19.638,55.639,5.361,46.904,100.0,0.306,69.242,0.0,0.0,0.0,21.522,0.0,63.655,100.0,49
+fatigue,moderate,Fixed impedance,4.122,58.675,2.325,8.255,22.449,0.265,58.904,14.014,52.654,7.854,19.125,38.693,59.825,77.262,49
+fatigue,moderate,Cognitive adaptive,3.531,58.587,2.413,7.015,4.082,0.102,58.701,12.401,60.0,6.116,19.857,33.823,60.545,80.844,49
+insole fault,moderate,Cognitive adaptive,3.908,58.254,2.746,7.869,3.125,0.0,59.058,7.876,46.001,3.016,24.956,19.255,15.537,89.929,32

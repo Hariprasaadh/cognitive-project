@@ -1,0 +1,57 @@
+=== main / mild (SIMULATED) ===
+t=  6.00 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 3 strides -> reduce assistance x0.6 to keep the patient working
+t= 33.34 s  CHALLENGE -> SAFETY_HOLD: knee buckled 13 deg under challenge -> stance support x1.3; next challenge only after 6 good strides
+t= 35.73 s  SAFETY_HOLD -> ASSIST_AS_NEEDED: 2 strides without buckling -> release hold
+
+=== main / moderate (SIMULATED) ===
+t=  6.00 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 3 strides -> reduce assistance x0.6 to keep the patient working
+t= 33.34 s  CHALLENGE -> ASSIST_AS_NEEDED: error rose to 9.0 deg under challenge; next challenge only after 6 good strides
+t= 35.73 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 8 strides -> reduce assistance x0.6 to keep the patient working
+
+=== main / severe (SIMULATED) ===
+t=  1.23 s  ASSIST_AS_NEEDED -> SAFETY_HOLD: knee buckled 13 deg beyond normative in stance (> 12) -> stance support x1.3
+t=  2.43 s  TOE SCUFF #1: toe still on the belt in swing -> swing flexion target +2 deg, tunnel +-1.5 deg
+t=  3.64 s  TOE SCUFF #2: toe still on the belt in swing -> swing flexion target +4 deg, tunnel +-1.0 deg
+t=  3.64 s  SAFETY_HOLD -> ASSIST_AS_NEEDED: 2 strides without buckling -> release hold
+t=  4.83 s  TOE SCUFF #3: toe still on the belt in swing -> swing flexion target +6 deg, tunnel +-1.0 deg
+t=  8.38 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 3 strides -> reduce assistance x0.6 to keep the patient working
+t=  9.58 s  CHALLENGE -> SAFETY_HOLD: knee buckled 13 deg under challenge -> stance support x1.3; next challenge only after 6 good strides
+t= 12.00 s  SAFETY_HOLD -> ASSIST_AS_NEEDED: 2 strides without buckling -> release hold
+t= 16.80 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 6 strides -> reduce assistance x0.6 to keep the patient working
+t= 17.98 s  CHALLENGE -> SAFETY_HOLD: knee buckled 13 deg under challenge -> stance support x1.3; next challenge only after 12 good strides
+t= 20.40 s  SAFETY_HOLD -> ASSIST_AS_NEEDED: 2 strides without buckling -> release hold
+t= 28.59 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 12 strides -> reduce assistance x0.6 to keep the patient working
+t= 29.80 s  CHALLENGE -> SAFETY_HOLD: knee buckled 13 deg under challenge -> stance support x1.3; next challenge only after 24 good strides
+t= 32.20 s  SAFETY_HOLD -> ASSIST_AS_NEEDED: 2 strides without buckling -> release hold
+
+=== main / stiff-knee (SIMULATED) ===
+t=  1.23 s  TOE SCUFF #1: toe still on the belt in swing -> swing flexion target +2 deg, tunnel +-1.5 deg
+t=  2.43 s  TOE SCUFF #2: toe still on the belt in swing -> swing flexion target +4 deg, tunnel +-1.0 deg
+t=  4.83 s  TOE SCUFF #3: toe still on the belt in swing -> swing flexion target +6 deg, tunnel +-1.0 deg
+t=  9.58 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 3 strides -> reduce assistance x0.6 to keep the patient working
+t= 10.81 s  CHALLENGE -> ASSIST_AS_NEEDED: toe scuffed under challenge; next challenge only after 6 good strides
+t= 15.60 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 6 strides -> reduce assistance x0.6 to keep the patient working
+t= 17.98 s  CHALLENGE -> ASSIST_AS_NEEDED: toe scuffed under challenge; next challenge only after 12 good strides
+t= 26.23 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 12 strides -> reduce assistance x0.6 to keep the patient working
+t= 29.80 s  CHALLENGE -> ASSIST_AS_NEEDED: toe scuffed under challenge; next challenge only after 24 good strides
+
+=== fatigue / moderate (SIMULATED) ===
+t=  6.00 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 3 strides -> reduce assistance x0.6 to keep the patient working
+t=  9.58 s  CHALLENGE -> SAFETY_HOLD: knee buckled 12 deg under challenge -> stance support x1.3; next challenge only after 6 good strides
+t= 12.00 s  SAFETY_HOLD -> ASSIST_AS_NEEDED: 2 strides without buckling -> release hold
+t= 20.40 s  ASSIST_AS_NEEDED -> CHALLENGE: patient extensor effort down to 84 % of baseline while error is only 3.0 deg -> slacking? testing it: assistance x0.6
+t= 21.56 s  CHALLENGE -> FATIGUE_SUPPORT: slacking test failed: with less assistance the knee buckled 13 deg. Low effort (86 % of baseline) means FATIGUE, not slacking -> assistance x1.4, no more challenges
+t= 27.43 s  RECOMMENDATION: fatigue persists after 5 supported strides -> suggest a 2-minute seated rest
+t= 52.42 s  TOE SCUFF #1: toe still on the belt in swing -> swing flexion target +2 deg, tunnel +-1.5 deg
+t= 56.02 s  TOE SCUFF #2: toe still on the belt in swing -> swing flexion target +4 deg, tunnel +-1.0 deg
+
+=== insole fault / moderate (SIMULATED) ===
+t=  6.00 s  ASSIST_AS_NEEDED -> CHALLENGE: error < 5 deg for 3 strides -> reduce assistance x0.6 to keep the patient working
+t= 20.96 s  PERCEPTION: no heel strike for 1.5 strides -> insole fault; gait phase now from the thigh phase portrait
+t= 21.48 s  CHALLENGE -> ASSIST_AS_NEEDED: error rose to 8.5 deg under challenge; next challenge only after 6 good strides
+t= 22.66 s  ASSIST_AS_NEEDED -> SAFETY_HOLD: knee buckled 13 deg beyond normative in stance (> 12) -> stance support x1.3
+t= 24.99 s  SAFETY_HOLD -> ASSIST_AS_NEEDED: 2 strides without buckling -> release hold
+t= 28.51 s  ASSIST_AS_NEEDED -> CHALLENGE: patient extensor effort down to 73 % of baseline while error is only 4.1 deg -> slacking? testing it: assistance x0.6
+t= 33.26 s  CHALLENGE -> FATIGUE_SUPPORT: slacking test failed: with less assistance the knee buckled 12 deg. Low effort (77 % of baseline) means FATIGUE, not slacking -> assistance x1.4, no more challenges
+t= 39.19 s  RECOMMENDATION: fatigue persists after 5 supported strides -> suggest a 2-minute seated rest
+

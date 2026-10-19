@@ -1,0 +1,6 @@
+patient,Knee RMSE vs normative (deg),Peak swing flexion (deg),Swing flexion deficit (deg),Max stance excess flexion (deg),Strides with knee buckling (%),Toe scuffs per stride,Knee ROM (deg),Exo torque RMS (N·m),Exo peak torque (N·m),Exo positive work per stride (J),Patient torque RMS (N·m),Assistance ratio (%),Final fatigue (%),Final effort (%),Strides analysed
+healthy,3.81,62.84,-1.84,5.54,0.0,0.0,61.61,0.0,0.0,0.0,27.16,0.0,6.0,100.0,24
+mild,4.54,60.74,0.26,9.19,0.0,0.0,61.65,0.0,0.0,0.0,31.23,0.0,9.51,100.0,24
+moderate,14.25,59.53,1.47,33.39,100.0,0.0,64.25,0.0,0.0,0.0,30.74,0.0,14.48,100.0,24
+severe,24.78,38.32,22.68,55.21,100.0,1.0,68.58,0.0,0.0,0.0,19.53,0.0,18.44,100.0,24
+stiff-knee,4.92,56.21,4.79,9.5,0.0,1.0,58.47,0.0,0.0,0.0,34.68,0.0,10.41,100.0,24

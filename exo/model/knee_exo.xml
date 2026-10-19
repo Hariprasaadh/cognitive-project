@@ -1,0 +1,238 @@
+﻿<!--
+  CogExo-Knee: treadmill gait rehabilitation with body-weight support (BWS) and a
+  powered knee exoskeleton on the affected RIGHT leg.
+
+  Segment lengths/masses: Winter, "Biomechanics and Motor Control of Human Movement"
+  anthropometric tables, H = 1.75 m, M = 70 kg:
+    thigh 0.245H = 0.429 m, 0.100M = 7.00 kg | shank 0.246H = 0.430 m, 0.0465M = 3.26 kg
+    foot length 0.152H = 0.266 m, ankle height 0.039H = 0.068 m, 0.0145M = 1.02 kg
+
+  Frames: world z up, walking direction +x, treadmill belt moves -x.
+  Joint signs: hip flexion +, knee flexion +, ankle dorsiflexion +.
+  The pelvis is a mocap body (held by the BWS harness, height set kinematically each step).
+  Hips, ankles and the left leg follow normative gait via stiff position servos;
+  the RIGHT KNEE is driven only by physics: patient torque + exo torque + stance load.
+-->
+<mujoco model="cogexo_knee">
+  <compiler angle="degree" autolimits="true"/>
+  <option timestep="0.001" integrator="implicitfast" gravity="0 0 -9.81"/>
+  <size memory="8M"/>
+
+  <visual>
+    <headlight ambient="0.32 0.32 0.36" diffuse="0.55 0.55 0.55" specular="0.1 0.1 0.1"/>
+    <rgba haze="0.10 0.16 0.24 1"/>
+    <global offwidth="1920" offheight="1080" azimuth="-90" elevation="-8"/>
+    <quality shadowsize="4096" offsamples="8"/>
+    <map znear="0.02"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.20 0.27 0.38" rgb2="0.02 0.03 0.05" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.15 0.17 0.21" rgb2="0.11 0.13 0.16" width="512" height="512" mark="edge" markrgb="0.26 0.30 0.36"/>
+    <material name="floor" texture="grid" texrepeat="10 10" reflectance="0.04"/>
+    <material name="skin" rgba="0.86 0.68 0.56 1" specular="0.2" shininess="0.3"/>
+    <material name="skin_xray" rgba="0.86 0.68 0.56 0.42" specular="0.2" shininess="0.3"/>
+    <material name="shirt" rgba="0.92 0.93 0.95 1" specular="0.1"/>
+    <material name="shorts" rgba="0.14 0.20 0.34 1"/>
+    <material name="shorts_xray" rgba="0.14 0.20 0.34 0.45"/>
+    <material name="shoe" rgba="0.10 0.10 0.12 1" specular="0.4"/>
+    <material name="hair" rgba="0.12 0.08 0.06 1"/>
+    <material name="harness" rgba="0.80 0.20 0.18 1"/>
+    <material name="frame" rgba="0.55 0.58 0.63 1" specular="0.7" shininess="0.8" reflectance="0.15"/>
+    <material name="deck" rgba="0.18 0.19 0.22 1" specular="0.3"/>
+    <material name="belt" rgba="0.06 0.06 0.07 1" specular="0.05"/>
+    <material name="stripe" rgba="0.30 0.33 0.37 1"/>
+    <material name="screen" rgba="0.10 0.65 0.95 1" emission="0.6"/>
+    <material name="exo_frame" rgba="0.80 0.83 0.88 1" specular="0.9" shininess="0.9" reflectance="0.25"/>
+    <material name="exo_cuff" rgba="0.10 0.11 0.13 0.92" specular="0.3"/>
+    <material name="exo_motor" rgba="0.05 0.55 0.95 1" specular="0.9" shininess="0.9" emission="0.25"/>
+  </asset>
+
+  <default>
+    <!-- no collisions anywhere (kinematic contact via pelvis height); masses only where given -->
+    <geom contype="0" conaffinity="0" density="0"/>
+    <site rgba="1 1 0.2 0" size="0.006"/>
+    <joint armature="0.01" damping="0.5"/>
+    <!-- computed-torque servos: force = ctrl - kp*q - kv*qd, with ctrl = kp*q_ref + kv*qd_ref + tau_ff
+         (PD evaluated by MuJoCo at every physics step; sim.py supplies references + feedforward) -->
+    <general gainprm="1" biastype="affine" biasprm="0 -4000 -160" forcerange="-500 500"/>
+    <default class="arm">
+      <general gainprm="1" biastype="affine" biasprm="0 -300 -20" forcerange="-80 80"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light name="key" pos="1.5 -2.5 3.5" dir="-0.35 0.6 -0.75" diffuse="0.75 0.75 0.75" castshadow="true"/>
+    <light name="fill" pos="-2 -1 3" dir="0.5 0.3 -0.6" diffuse="0.25 0.25 0.3" castshadow="false"/>
+    <light name="rim" pos="0 3 2.5" dir="0 -0.8 -0.5" diffuse="0.2 0.22 0.28" castshadow="false"/>
+    <geom name="floor" type="plane" size="6 6 0.1" material="floor"/>
+
+    <camera name="side" pos="0.15 -2.75 0.98" xyaxes="1 0 0 0 0 1" fovy="45"/>
+    <camera name="knee" pos="0.25 -1.15 0.55" xyaxes="1 0 0 0 0.2 1" fovy="45"/>
+    <camera name="iso" pos="2.3 -2.5 1.75" mode="targetbodycom" target="pelvis" fovy="45"/>
+    <camera name="front" pos="2.8 -0.2 1.1" mode="targetbodycom" target="pelvis" fovy="40"/>
+
+    <!-- ===================== treadmill ===================== -->
+    <body name="treadmill">
+      <geom name="deck" type="box" pos="0 0 0.045" size="1.05 0.36 0.045" material="deck"/>
+      <geom name="belt" type="box" pos="0 0 0.095" size="0.95 0.29 0.004" material="belt"/>
+      <geom name="rail_l" type="box" pos="0 0.33 0.10" size="1.05 0.035 0.012" material="frame"/>
+      <geom name="rail_r" type="box" pos="0 -0.33 0.10" size="1.05 0.035 0.012" material="frame"/>
+      <geom name="roller_f" type="cylinder" pos="0.97 0 0.07" zaxis="0 1 0" size="0.035 0.30" material="frame"/>
+      <geom name="roller_b" type="cylinder" pos="-0.97 0 0.07" zaxis="0 1 0" size="0.035 0.30" material="frame"/>
+      <!-- console + handrails -->
+      <geom name="post_l" type="capsule" fromto="1.0 0.34 0.1 1.0 0.34 1.15" size="0.025" material="frame"/>
+      <geom name="post_r" type="capsule" fromto="1.0 -0.34 0.1 1.0 -0.34 1.15" size="0.025" material="frame"/>
+      <geom name="hand_l" type="capsule" fromto="1.0 0.40 1.0 0.15 0.40 1.0" size="0.018" material="frame"/>
+      <geom name="hand_r" type="capsule" fromto="1.0 -0.40 1.0 0.15 -0.40 1.0" size="0.018" material="frame"/>
+      <geom name="hand_lv" type="capsule" fromto="1.0 0.34 1.0 1.0 0.40 1.0" size="0.018" material="frame"/>
+      <geom name="hand_rv" type="capsule" fromto="1.0 -0.34 1.0 1.0 -0.40 1.0" size="0.018" material="frame"/>
+      <geom name="console" type="box" pos="1.02 0 1.2" euler="0 -25 0" size="0.05 0.30 0.11" material="deck"/>
+      <geom name="screen" type="box" pos="0.975 0 1.215" euler="0 -25 0" size="0.004 0.24 0.08" material="screen"/>
+    </body>
+
+    <!-- ===================== body-weight-support harness frame ===================== -->
+    <body name="bws_frame">
+      <geom type="capsule" fromto="-1.25 0.62 0 -1.25 0.62 2.25" size="0.035" material="frame"/>
+      <geom type="capsule" fromto="-1.25 -0.62 0 -1.25 -0.62 2.25" size="0.035" material="frame"/>
+      <geom type="capsule" fromto="-1.25 0.62 2.25 -1.25 -0.62 2.25" size="0.035" material="frame"/>
+      <geom type="capsule" fromto="-1.25 0 2.25 0 0 2.25" size="0.03" material="frame"/>
+      <geom type="box" pos="0 0 2.22" size="0.06 0.06 0.04" material="deck"/>
+      <geom type="box" pos="-1.25 0.62 0.02" size="0.30 0.05 0.02" material="frame"/>
+      <geom type="box" pos="-1.25 -0.62 0.02" size="0.30 0.05 0.02" material="frame"/>
+    </body>
+
+    <!-- moving belt markers (mocap, animated in sim.py) -->
+    <body name="stripe0" mocap="true" pos="-0.85 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe1" mocap="true" pos="-0.64 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe2" mocap="true" pos="-0.43 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe3" mocap="true" pos="-0.22 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe4" mocap="true" pos="-0.01 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe5" mocap="true" pos="0.20 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe6" mocap="true" pos="0.41 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe7" mocap="true" pos="0.62 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+    <body name="stripe8" mocap="true" pos="0.83 0 0.1"><geom type="box" size="0.010 0.28 0.0012" material="stripe"/></body>
+
+    <!-- ===================== person (pelvis held by harness) ===================== -->
+    <body name="pelvis" mocap="true" pos="0 0 1.0">
+      <geom name="pelvis_g" type="box" pos="0 0 0.03" size="0.09 0.15 0.07" material="shorts"/>
+      <geom name="abdomen" type="capsule" fromto="0 0 0.08 0 0 0.30" size="0.115" material="shirt"/>
+      <geom name="chest" type="box" pos="0 0 0.40" size="0.10 0.17 0.13" material="shirt"/>
+      <geom name="neck" type="capsule" fromto="0 0 0.52 0 0 0.58" size="0.045" material="skin"/>
+      <geom name="head" type="sphere" pos="0.01 0 0.68" size="0.10" material="skin"/>
+      <geom name="hair" type="sphere" pos="-0.01 0 0.71" size="0.095" material="hair"/>
+      <!-- harness vest + overhead cable (moves with the pelvis) -->
+      <geom name="vest_lo" type="box" pos="0 0 0.12" size="0.125 0.18 0.035" material="harness"/>
+      <geom name="vest_hi" type="box" pos="0 0 0.36" size="0.115 0.185 0.03" material="harness"/>
+      <geom name="strap_l" type="box" pos="0 0.10 0.24" size="0.118 0.02 0.12" material="harness"/>
+      <geom name="strap_r" type="box" pos="0 -0.10 0.24" size="0.118 0.02 0.12" material="harness"/>
+      <geom name="spreader" type="capsule" fromto="0 -0.22 0.62 0 0.22 0.62" size="0.015" material="frame"/>
+      <geom name="rope_l" type="capsule" fromto="0 0.18 0.40 0 0.20 0.62" size="0.006" material="harness"/>
+      <geom name="rope_r" type="capsule" fromto="0 -0.18 0.40 0 -0.20 0.62" size="0.006" material="harness"/>
+      <geom name="cable" type="capsule" fromto="0 0 0.62 0 0 1.20" size="0.008" material="frame"/>
+
+      <!-- arms (swing via weak servos) -->
+      <body name="l_upperarm" pos="0 0.215 0.48">
+        <joint name="l_shoulder" type="hinge" axis="0 -1 0" range="-60 60"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.30" size="0.042" material="shirt" mass="1.9"/>
+        <geom type="capsule" fromto="0 0 -0.30 0.10 0 -0.53" size="0.034" material="skin" mass="1.1"/>
+        <geom type="sphere" pos="0.115 0 -0.60" size="0.045" material="skin" mass="0.4"/>
+      </body>
+      <body name="r_upperarm" pos="0 -0.215 0.48">
+        <joint name="r_shoulder" type="hinge" axis="0 -1 0" range="-60 60"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.30" size="0.042" material="shirt" mass="1.9"/>
+        <geom type="capsule" fromto="0 0 -0.30 0.10 0 -0.53" size="0.034" material="skin" mass="1.1"/>
+        <geom type="sphere" pos="0.115 0 -0.60" size="0.045" material="skin" mass="0.4"/>
+      </body>
+
+      <!-- ---------- LEFT leg (unaffected) ---------- -->
+      <body name="l_thigh" pos="0 0.09 0">
+        <joint name="l_hip" type="hinge" axis="0 -1 0" range="-40 70"/>
+        <geom name="l_thigh_g" type="capsule" fromto="0 0 0 0 0 -0.429" size="0.062" material="shorts" mass="7.0"/>
+        <body name="l_shank" pos="0 0 -0.429">
+          <joint name="l_knee" type="hinge" axis="0 1 0" range="-5 120"/>
+          <geom name="l_shank_g" type="capsule" fromto="0 0 0 0 0 -0.43" size="0.045" material="skin" mass="3.26"/>
+          <body name="l_foot" pos="0 0 -0.43">
+            <joint name="l_ankle" type="hinge" axis="0 -1 0" range="-40 30"/>
+            <geom name="l_foot_g" type="box" pos="0.07 0 -0.045" size="0.133 0.045 0.025" material="shoe" mass="1.02"/>
+            <site name="l_heel" pos="-0.063 0 -0.068"/>
+            <site name="l_toe" pos="0.203 0 -0.068"/>
+          </body>
+        </body>
+      </body>
+
+      <!-- ---------- RIGHT leg (affected) + knee exoskeleton ---------- -->
+      <body name="r_thigh" pos="0 -0.09 0">
+        <joint name="r_hip" type="hinge" axis="0 -1 0" range="-40 70"/>
+        <geom name="r_thigh_g" type="capsule" fromto="0 0 0 0 0 -0.429" size="0.062" material="shorts_xray" mass="7.0"/>
+        <!-- patella wrap keeps the visual quadriceps/hamstring paths realistic -->
+        <geom name="knee_wrap" type="cylinder" pos="0 0 -0.429" zaxis="0 1 0" size="0.035 0.04" rgba="0 0 0 0" group="3"/>
+        <site name="quad_o" pos="0.045 0 -0.06"/>
+        <site name="ham_o" pos="-0.045 0 -0.05"/>
+        <site name="quad_side" pos="0.06 0 -0.429"/>
+        <site name="ham_side" pos="-0.06 0 -0.429"/>
+        <!-- exo thigh segment -->
+        <geom name="exo_th_cuff1" type="cylinder" pos="0 0 -0.12" size="0.074 0.022" material="exo_cuff"/>
+        <geom name="exo_th_cuff2" type="cylinder" pos="0 0 -0.33" size="0.068 0.022" material="exo_cuff"/>
+        <geom name="exo_th_bar" type="box" pos="0 -0.078 -0.235" size="0.016 0.008 0.16" material="exo_frame"/>
+        <geom name="exo_motor" type="cylinder" pos="0 -0.088 -0.429" zaxis="0 1 0" size="0.055 0.022" material="exo_motor"/>
+        <geom name="exo_motor_cap" type="cylinder" pos="0 -0.112 -0.429" zaxis="0 1 0" size="0.032 0.005" material="exo_frame"/>
+        <geom name="exo_battery" type="box" pos="-0.07 -0.075 -0.18" size="0.025 0.015 0.05" material="exo_cuff"/>
+
+        <body name="r_shank" pos="0 0 -0.429">
+          <joint name="r_knee" type="hinge" axis="0 1 0" range="-5 120" damping="0.8"/>
+          <geom name="r_shank_g" type="capsule" fromto="0 0 0 0 0 -0.43" size="0.045" material="skin_xray" mass="3.26"/>
+          <site name="quad_i" pos="0.04 0 -0.07"/>
+          <site name="ham_i" pos="-0.035 0 -0.08"/>
+          <!-- exo shank segment (adds 0.9 kg to the knee's moving mass) -->
+          <geom name="exo_sh_cuff1" type="cylinder" pos="0 0 -0.11" size="0.058 0.02" material="exo_cuff" mass="0.25"/>
+          <geom name="exo_sh_cuff2" type="cylinder" pos="0 0 -0.32" size="0.052 0.02" material="exo_cuff" mass="0.25"/>
+          <geom name="exo_sh_bar" type="box" pos="0 -0.072 -0.20" size="0.015 0.008 0.17" material="exo_frame" mass="0.40"/>
+          <body name="r_foot" pos="0 0 -0.43">
+            <joint name="r_ankle" type="hinge" axis="0 -1 0" range="-40 30"/>
+            <geom name="r_foot_g" type="box" pos="0.07 0 -0.045" size="0.133 0.045 0.025" material="shoe" mass="1.02"/>
+            <geom name="exo_ankle_strap" type="cylinder" pos="0 0 0.0" size="0.05 0.012" material="exo_cuff"/>
+            <site name="r_heel" pos="-0.063 0 -0.068"/>
+            <site name="r_toe" pos="0.203 0 -0.068"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <!-- visual only (no actuators): coloured by the patient's extensor / flexor knee torque -->
+    <spatial name="quadriceps" width="0.016" rgba="0.75 0.3 0.3 1">
+      <site site="quad_o"/>
+      <geom geom="knee_wrap" sidesite="quad_side"/>
+      <site site="quad_i"/>
+    </spatial>
+    <spatial name="hamstrings" width="0.014" rgba="0.75 0.3 0.3 1">
+      <site site="ham_o"/>
+      <geom geom="knee_wrap" sidesite="ham_side"/>
+      <site site="ham_i"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <!-- normative-gait computed-torque servos -->
+    <general name="l_hip_servo" joint="l_hip"/>
+    <general name="l_knee_servo" joint="l_knee"/>
+    <general name="l_ankle_servo" joint="l_ankle"/>
+    <general name="r_hip_servo" joint="r_hip"/>
+    <general name="r_ankle_servo" joint="r_ankle"/>
+    <general name="l_arm_servo" joint="l_shoulder" class="arm"/>
+    <general name="r_arm_servo" joint="r_shoulder" class="arm"/>
+    <!-- affected right knee: net muscle torque of the patient, and the exoskeleton motor -->
+    <motor name="patient_knee" joint="r_knee" ctrlrange="-150 150"/>
+    <motor name="exo_knee" joint="r_knee" ctrlrange="-60 60"/>
+  </actuator>
+
+  <sensor>
+    <jointpos name="knee_angle" joint="r_knee"/>
+    <jointvel name="knee_vel" joint="r_knee"/>
+    <jointpos name="thigh_angle" joint="r_hip"/>
+    <jointvel name="thigh_vel" joint="r_hip"/>
+    <actuatorfrc name="exo_torque" actuator="exo_knee"/>
+  </sensor>
+</mujoco>

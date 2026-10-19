@@ -1,0 +1,7 @@
+scenario,Phase error MAE (% cycle),Phase error RMS (% cycle),"Phase error MAE, insole (% cycle)","Phase error MAE, phase portrait (% cycle)",Time on phase-portrait fallback (%),Heel strikes detected (%),False heel-strike detections,Heel-strike timing error (ms),Patient torque estimate RMSE (N·m),Patient torque estimate correlation r,"Patient torque RMS (true, N·m)"
+healthy,1.02,1.218,1.02,,0.0,100.0,0,5.827,7.706,0.949,26.793
+mild,1.02,1.218,1.02,,0.0,100.0,0,5.827,8.065,0.959,31.543
+moderate,1.02,1.218,1.02,,0.0,100.0,0,5.827,8.107,0.959,31.306
+severe,1.101,1.302,1.101,,0.0,100.0,0,5.764,8.217,0.905,19.125
+stiff-knee,1.086,1.282,1.086,,0.0,100.0,0,6.073,10.076,0.946,33.535
+"moderate, insole fault at 10 s",1.487,2.227,1.047,1.937,49.459,50.0,0,5.254,11.763,0.912,31.306

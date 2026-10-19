@@ -1,0 +1,13 @@
+# Cognitive Exoskeleton for Knee Rehabilitation - Python 3.10+ (tested on 3.12, Windows 11)
+mujoco>=3.2          # physics + offscreen rendering + interactive viewer
+numpy
+scipy
+pandas
+matplotlib
+plotly
+streamlit>=1.37      # st.fragment(run_every=...) is used for the live view
+pillow
+imageio
+imageio-ffmpeg       # MP4 export
+joblib               # parallel experiments
+pytest
