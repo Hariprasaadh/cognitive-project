@@ -36,3 +36,11 @@ def test_dashboard_renders_and_runs_headless_session():
     assert not at.exception
     r = at.session_state["result"]["result"]
     assert r.metrics["Strides analysed"] >= 5
+
+
+def test_live_twin_and_hardware_tab():
+    at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=180)
+    at.run()
+    assert not at.exception
+    assert at.checkbox(key="twin_on").value          # unassisted twin is on by default
+    assert any("Hardware" in t.label for t in at.tabs)

@@ -23,10 +23,10 @@ from plotly.subplots import make_subplots
 from exo.config import PATIENT_PRESETS, RESULTS_DIR, ControllerConfig, GaitConfig, SensorConfig, SimConfig, patient_preset
 from exo.controllers import MODE_COLORS, MODES, make_controller
 from exo.gait import SUBPHASES, TOE_OFF, GaitReference
-from exo.metrics import NORMATIVE_PEAK_SWING_DEG, gait_cycle_curves
+from exo.metrics import NORMATIVE_PEAK_SWING_DEG, gait_cycle_curves, stride_table
 from exo.perception import PHASE_SOURCES
 from exo.session import Session
-from exo.viz import save_mp4, skeleton_animation
+from exo.viz import HW_COMPONENTS, hardware_animation, save_mp4, skeleton_animation
 
 st.set_page_config(page_title="Cognitive Knee Exoskeleton", page_icon="🦿", layout="wide")
 
@@ -141,7 +141,7 @@ def pack_result(s: Session, cfg, video=None) -> dict:
 
 
 # ======================================================================== live tab
-def live_figure(df: pd.DataFrame, tol_deg: float, show_tunnel: bool) -> go.Figure:
+def live_figure(df: pd.DataFrame, tol_deg: float, show_tunnel: bool, df_twin: pd.DataFrame | None = None) -> go.Figure:
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.42, 0.33, 0.25],
                         subplot_titles=("Right knee angle (deg)", "Knee torques (N·m, + flexion)",
                                         "Gait phase: true vs estimated by the exo"))
@@ -152,7 +152,10 @@ def live_figure(df: pd.DataFrame, tol_deg: float, show_tunnel: bool) -> go.Figur
         fig.add_trace(go.Scatter(x=t, y=ref - tol_deg, fill="tonexty", fillcolor="rgba(244,162,97,0.14)",
                                  line=dict(width=0), name=f"assist-as-needed tunnel ±{tol_deg:g}°"), 1, 1)
     fig.add_trace(go.Scatter(x=t, y=ref, name="normative", line=dict(color="#e8eaf0", dash="dash", width=1.5)), 1, 1)
-    fig.add_trace(go.Scatter(x=t, y=np.rad2deg(df["knee"]), name="knee (simulated)",
+    if df_twin is not None and len(df_twin):
+        fig.add_trace(go.Scatter(x=df_twin["t"], y=np.rad2deg(df_twin["knee"]), name="knee WITHOUT exo (same patient)",
+                                 line=dict(color="#e63946", width=2, dash="dot")), 1, 1)
+    fig.add_trace(go.Scatter(x=t, y=np.rad2deg(df["knee"]), name="knee WITH exo" if df_twin is not None else "knee (simulated)",
                              line=dict(color="#4ea8de", width=2.5)), 1, 1)
     fig.add_trace(go.Scatter(x=t, y=df["tau_exo"], name="exo torque", line=dict(color="#f4a261", width=2)), 2, 1)
     fig.add_trace(go.Scatter(x=t, y=df["tau_patient"], name="patient muscle torque (true)",
@@ -176,16 +179,20 @@ def live_figure(df: pd.DataFrame, tol_deg: float, show_tunnel: bool) -> go.Figur
 def live_tab(cfg):
     ss = st.session_state
     c1, c2, c3, c4, c5 = st.columns([1.2, 1, 1, 1.2, 1.6])
+    twin_on = c5.checkbox("Show the same patient WITHOUT the exo", value=True, key="twin_on",
+                          help="Runs a second, identical virtual patient with no assistance next to the main one")
     if c1.button("▶ Start new session", type="primary", width="stretch"):
         ss.live = make_session(cfg)
+        ss.twin = make_session(with_kind(cfg, "none")) if twin_on else None
         ss.live_cfg = cfg
         ss.running = True
+        ss.pop("tick_cost", None)
     if c2.button("⏸ Pause / ▶ resume", width="stretch", disabled="live" not in ss):
         ss.running = not ss.get("running", False)
     ss.camera = c3.selectbox("Camera", ["side", "knee", "iso", "front"], label_visibility="collapsed")
     ss.speed = c4.select_slider("Speed", options=[0.5, 1.0, 2.0, 4.0], value=1.0,
                                 format_func=lambda v: f"{v:g}× real time", label_visibility="collapsed")
-    c5.caption("Start a session, then intervene live: inject fatigue, unplug the insole, or hot-swap the controller.")
+    st.caption("Start a session, then intervene live: inject fatigue, unplug the insole, or hot-swap the controller.")
     # The live loop never lets the script run finish, so Streamlit never clears elements left over from the
     # previous run. Keep the intro in one slot that a session run explicitly empties.
     intro = st.empty()
@@ -201,16 +208,55 @@ def live_tab(cfg):
     st.fragment(live_panel)()
 
 
+def stride_stats(sess: Session) -> dict:
+    """Per-stride metrics so far, recomputed only when a new stride has finished."""
+    cache = getattr(sess, "_stats_cache", None)
+    if cache is None or cache[0] != sess.stride:
+        t = stride_table(sess.dataframe())
+        stats = ({"n": len(t), "rmse": t["rmse_deg"].mean(), "buckled": int(t["buckled"].sum()),
+                  "scuffs": t["scuffs"].mean(), "swing": t["peak_swing_deg"].mean()} if len(t) else {})
+        sess._stats_cache = cache = (sess.stride, stats)
+    return cache[1]
+
+
+def twin_tiles(twin: Session, s: Session):
+    """Live scoreboard: same patient without the exo (left value) vs with it (right value)."""
+    a, b = stride_stats(twin), stride_stats(s)
+    c = st.columns(4)
+    if not a or not b:
+        tile(c[0], "Why the exo matters", "…", "scoreboard appears after the first full strides")
+        return
+    n = a["n"]
+    bad, good = "#e63946", "#90be6d"
+    tile(c[0], "Knee error vs normal gait", f"{a['rmse']:.1f}° → {b['rmse']:.1f}°", "without → with exo", good if b["rmse"] < a["rmse"] else bad)
+    tile(c[1], "Strides where the knee buckled", f"{a['buckled']} / {n} → {b['buckled']} / {b['n']}",
+         "knee collapses in stance without help", good if b["buckled"] <= a["buckled"] else bad)
+    tile(c[2], "Toe scuffs per stride", f"{a['scuffs']:.2f} → {b['scuffs']:.2f}", "foot dragging in swing", good if b["scuffs"] <= a["scuffs"] else bad)
+    tile(c[3], "Peak swing knee flexion", f"{a['swing']:.0f}° → {b['swing']:.0f}°", f"normal gait {NORMATIVE_PEAK_SWING_DEG:.0f}°")
+
+
 def live_panel():
     ss = st.session_state
     s: Session = ss.live
     cfg = ss.live_cfg
+    twin: Session | None = ss.get("twin")
+    size = (480, 270) if twin is not None else (720, 405)      # two renders per frame: keep real-time pace
+    if twin is not None:       # side-by-side: the same patient with and without the exoskeleton
+        v1, v2 = st.columns(2)
+        v1.markdown("##### 🚫 Without exoskeleton")
+        twin_ph = v1.empty()
+        v2.markdown(f"##### ✅ With exoskeleton ({KIND_LABEL[cfg['kind']]})")
+        img_ph = v2.empty()
+        cmp_ph = st.empty()
     left, right = st.columns([1.05, 1])
     with left:
-        img_ph = st.empty()
+        if twin is None:
+            img_ph = st.empty()
         b1, b2 = st.columns(2)
         if b1.button("💤 Inject fatigue (+30%)", width="stretch", disabled=s.done):
             s.inject_fatigue(0.3)
+            if twin is not None:
+                twin.inject_fatigue(0.3)
             s.controller.log(s.time, "USER: fatigue injected (+30 %) by the therapist")
         if b2.button("🔌 Unplug insole", width="stretch", disabled=s.done):
             s.fail_insole()
@@ -234,18 +280,31 @@ def live_panel():
         # ---- simulate one tick, then send ONE animated clip + one UI update (browser-friendly)
         if ss.get("running") and not s.done:
             t_tick = time.perf_counter()
-            frames = []
+            frames, twin_frames = [], []
             for _ in range(LIVE_FRAMES):
                 if s.done:
                     break
                 s.advance(1 / LIVE_FPS)
-                frames.append(s.sim.render(ss.camera, 720, 405))
-            img_ph.markdown(clip_html(frames, LIVE_FPS / ss.speed), unsafe_allow_html=True)
+                frames.append(s.sim.render(ss.camera, *size))
+                if twin is not None:
+                    twin.advance(1 / LIVE_FPS)
+                    twin_frames.append(twin.sim.render(ss.camera, *size))
+            # If a tick takes longer to compute than its clip lasts, stretch the clip to the real cost so
+            # playback stays continuous (slightly slower than real time) instead of freezing between clips.
+            play_fps = LIVE_FPS / ss.speed * min(1.0, (LIVE_FRAMES / LIVE_FPS / ss.speed) / max(ss.get("tick_cost", 0.0), 1e-3))
+            img_ph.markdown(clip_html(frames, play_fps), unsafe_allow_html=True)
+            if twin is not None:
+                twin_ph.markdown(clip_html(twin_frames, play_fps), unsafe_allow_html=True)
             ss.last_frame = frames[-1] if frames else ss.get("last_frame")
             ss.tick_wall = (t_tick, len(frames) / LIVE_FPS / ss.speed)
         else:
-            img_ph.markdown(clip_html([s.sim.render(ss.camera, 720, 405)], 1), unsafe_allow_html=True)
+            img_ph.markdown(clip_html([s.sim.render(ss.camera, *size)], 1), unsafe_allow_html=True)
+            if twin is not None:
+                twin_ph.markdown(clip_html([twin.sim.render(ss.camera, *size)], 1), unsafe_allow_html=True)
 
+        if twin is not None:
+            with cmp_ph.container():
+                twin_tiles(twin, s)
         p, pc, info = s.patient, s.percept, s.last_info
         mode = info.get("mode", "OFF")
         insole_ok = pc is None or pc.insole_ok
@@ -268,10 +327,13 @@ def live_panel():
         log_ph.markdown(log_html(s.controller.events, 9), unsafe_allow_html=True)
         if s.rows:
             df = s.dataframe().tail(600)
-            chart_ph.plotly_chart(live_figure(df, cfg["ctrl"].tolerance_deg, cfg["kind"] == "cognitive"))
+            df_twin = twin.dataframe().tail(600) if twin is not None else None
+            chart_ph.plotly_chart(live_figure(df, cfg["ctrl"].tolerance_deg, cfg["kind"] == "cognitive", df_twin))
         if ss.get("running") and "tick_wall" in ss:
             t_tick, clip_len = ss.tick_wall
-            time.sleep(max(0.0, clip_len - (time.perf_counter() - t_tick)))
+            cost = time.perf_counter() - t_tick
+            ss.tick_cost = cost if "tick_cost" not in ss else 0.6 * ss.tick_cost + 0.4 * cost
+            time.sleep(max(0.0, clip_len - cost))
         if s.done and ss.get("running"):
             ss.running = False
             ss.result = pack_result(s, cfg)
@@ -573,11 +635,82 @@ insole switches emulated from gait events. **All results are simulated** and are
             st.image(str(RESULTS_DIR / f), caption=cap, width="stretch")
 
 
+# ======================================================================== hardware tab
+HW_FLOW = """
+digraph H {
+  rankdir=LR; bgcolor="transparent"; nodesep=0.25; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=12, color="#3a4152",
+        fontcolor="#e8eaf0", fillcolor="#1a1d27", margin="0.14,0.07"];
+  edge [color="#8d99ae", fontcolor="#9aa3b5", fontsize=10, penwidth=1.3];
+  enc [label="④ Knee encoder\nknee angle, speed"]; imu [label="⑤ Thigh IMU\nthigh angle, swing speed"];
+  ins [label="⑦ Insole switches\nheel strike, toe off"]; cur [label="Motor current\n(torque feedback)"];
+  mcu [label="⑥ Microcontroller (500 Hz)\nPERCEIVE: gait phase, patient torque\nREASON: assist / challenge / fatigue\nACT: impedance torque command\nLEARN: gains per stride", fillcolor="#2a2238"];
+  saf [label="⑧ Safety layer\n±60 N·m, slew limit,\nhard stops, E-stop", fillcolor="#33261f"];
+  drv [label="Motor driver"]; mot [label="③ Knee motor + gearbox", fillcolor="#1f2a3a"]; leg [label="Patient's knee\n(extends / flexes)", fillcolor="#1f3329"];
+  enc -> mcu; imu -> mcu; ins -> mcu; cur -> mcu; mcu -> saf [label=" torque command"]; saf -> drv -> mot -> leg;
+  leg -> enc [style=dashed, label=" motion", constraint=false];
+}
+"""
+
+STRIDE_STEPS = [
+    ("Heel strike → loading response (0–12 %)", "Insole ⑦ senses the heel hit the ground. A weak quadriceps cannot hold the knee while body weight "
+     "lands on it, so the knee buckles. Motor ③ pushes the knee into extension within a few ms of the encoder ④ seeing it fold "
+     "(anti-buckling reflex)."),
+    ("Mid and terminal stance (12–50 %)", "The knee only needs to stay near normal. While the encoder shows the angle inside the ±3° tunnel, the motor "
+     "stays quiet so the patient does the work. If the patient drifts out, assistance grows."),
+    ("Pre-swing → initial swing (50–75 %)", "Toe off is read by insole ⑦. A stiff or weak knee does not flex enough and the toe drags. "
+     "The motor adds a flexion pulse (learned feedforward from earlier strides) so the foot clears the ground."),
+    ("Mid and terminal swing (75–100 %)", "The shank swings forward and the knee straightens for the next heel strike. The thigh IMU ⑤ keeps "
+     "the phase estimate on track; the motor mostly stays out of the way."),
+]
+
+
+@st.cache_data(show_spinner="Simulating a short walk for the hardware view…")
+def hardware_demo_frames() -> list:
+    s = Session(patient_preset("moderate"), make_controller("cognitive"), SimConfig(duration=9.0), GaitConfig(),
+                skeleton_hz=20.0)
+    s.run()
+    return s.skeleton_frames[-140:]            # last 7 s: past the start-up transient
+
+
+def hardware_tab():
+    ss = st.session_state
+    st.markdown("### How the exoskeleton is built and worn")
+    st.caption("A proposed hardware design for the simulated device. Component values (60 N·m, 500 Hz, 14-bit encoder) "
+               "match the simulation; nothing here has been built or tested on a person.")
+    R = ss.get("result")
+    if R and R["skeleton"] and R["kind"] != "none":      # an unpowered session would show a motor stuck at 0 N·m
+        frames, src = R["skeleton"][-140:], f"Replaying the end of your last session ({R['label']})."
+        tau_max = R["tau_max"]
+    else:
+        frames, src, tau_max = hardware_demo_frames(), "Replaying a 7 s demo walk (moderate patient, cognitive controller).", 60.0
+    a, b = st.columns([1.5, 1])
+    with a:
+        st.plotly_chart(hardware_animation(frames, tau_max, "Right leg with the exoskeleton"), key="hw_anim",
+                        config={"displayModeBar": False})
+        st.caption(f"{src} Press ▶ Play. The knee motor ③ turns from blue to orange as it works harder; the insole "
+                   "squares ⑦ turn green while that part of the foot presses on the ground.")
+    with b:
+        for n, name, where, what in HW_COMPONENTS:
+            st.markdown(f'<div class="tile" style="min-height:0"><div class="val long"><span style="color:#f4a261">{n}</span> '
+                        f'&nbsp;{name}</div><div class="sub"><i>{where}</i><br>{what}</div></div>', unsafe_allow_html=True)
+    st.markdown("#### Signal path: from sensors to the knee")
+    st.graphviz_chart(HW_FLOW, width="stretch")
+    st.markdown("#### What the hardware does during one stride")
+    for title, text in STRIDE_STEPS:
+        st.markdown(f"**{title}**<br>{text}", unsafe_allow_html=True)
+    st.markdown("#### Why it works")
+    st.markdown("The patient's own muscles are too weak or too stiff to hold the knee in stance and bend it in swing. "
+                "Sensors ④⑤⑦ tell the controller where the patient is in the stride, and motor ③ supplies only the missing "
+                "torque at the right moment. That is the difference you see in the Live Simulation tab between the unassisted "
+                "patient (buckling, dragging the toe) and the assisted one.")
+
+
 # ======================================================================== main
 def main():
     cfg = sidebar()
     st.markdown("## 🦿 Cognitive Exoskeleton for Knee Rehabilitation")
-    tabs = st.tabs(["🎥 Live Simulation", "📊 Session Analysis", "⚖ Controller Comparison", "🧠 How it works"])
+    tabs = st.tabs(["🎥 Live Simulation", "📊 Session Analysis", "⚖ Controller Comparison", "🔧 Hardware", "🧠 How it works"])
     with tabs[0]:
         live_tab(cfg)
     with tabs[1]:
@@ -585,6 +718,8 @@ def main():
     with tabs[2]:
         comparison_tab(cfg)
     with tabs[3]:
+        hardware_tab()
+    with tabs[4]:
         how_tab()
 
 
