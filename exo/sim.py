@@ -35,6 +35,21 @@ def _close_all_renderers():
 threading._register_atexit(_close_all_renderers)   # runs before the executor's own exit hook
 
 
+def _free_renderer(r: mujoco.Renderer):
+    """Close a renderer without breaking the others on the GL thread.
+
+    mujoco.Renderer.close() destroys its GL context first and frees its MjrContext afterwards, while
+    another renderer's context is current. Object ids are per context, so that free deletes the OTHER
+    renderer's framebuffer and every later frame it renders is black. Free the MjrContext in its own
+    context first."""
+    ctx, mjr = getattr(r, "_gl_context", None), getattr(r, "_mjr_context", None)
+    if ctx is not None and mjr is not None:
+        ctx.make_current()
+        mjr.free()
+        r._mjr_context = None
+    r.close()
+
+
 class GaitSim:
     def __init__(self, sim_cfg: SimConfig | None = None, gait_cfg: GaitConfig | None = None,
                  xml_path=MODEL_XML):
@@ -268,11 +283,11 @@ class GaitSim:
         r, self._renderer = getattr(self, "_renderer", None), None
         if r is not None:
             try:
-                _GL_THREAD.submit(r.close)
+                _GL_THREAD.submit(_free_renderer, r)
             except RuntimeError:          # interpreter shutting down
                 pass
 
     def _close(self):
         if self._renderer is not None:
-            self._renderer.close()
+            _free_renderer(self._renderer)
             self._renderer = None
