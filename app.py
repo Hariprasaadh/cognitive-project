@@ -205,7 +205,9 @@ def live_tab(cfg):
                 st.image(str(img), caption="The simulated world: treadmill, body-weight-support harness, "
                                            "right-knee exoskeleton (SIMULATED)", width="stretch")
         return
-    st.fragment(live_panel)()
+    # Not an st.fragment: a click inside a fragment waits for the page run to finish, and this loop never
+    # lets it finish, so the live buttons were ignored. As part of the page run, a click interrupts the loop.
+    live_panel()
 
 
 def stride_stats(sess: Session) -> dict:
@@ -275,7 +277,7 @@ def live_panel():
         chart_ph = st.empty()
 
     # Single in-place loop: placeholders are overwritten each tick, so the page never reruns/flickers.
-    # Clicking any widget interrupts the loop and the fragment restarts it with the new state.
+    # Clicking any widget interrupts the loop and the rerun restarts it with the new state.
     while True:
         # ---- simulate one tick, then send ONE animated clip + one UI update (browser-friendly)
         if ss.get("running") and not s.done:
