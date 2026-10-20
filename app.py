@@ -37,25 +37,24 @@ SUB_NAMES = [s[0] for s in SUBPHASES]
 st.markdown("""
 <style>
 .block-container {padding-top: 1.2rem;}
-.sim-banner {background: linear-gradient(90deg,#7f1d1d,#b91c1c); color: #fff; padding: 6px 14px;
-             border-radius: 8px; font-weight: 600; letter-spacing: .3px; margin-bottom: .6rem;}
-.tile {background:#1a1d27; border:1px solid #2a2f3d; border-radius:12px; padding:10px 14px; height:100%;}
-.tile .lbl {font-size:.74rem; color:#9aa3b5; text-transform:uppercase; letter-spacing:.6px;}
-.tile .val {font-size:1.45rem; font-weight:700; color:#f1f3f8; line-height:1.25;}
-.tile .sub {font-size:.75rem; color:#9aa3b5;}
+.tile {background:#1a1d27; border:1px solid #2a2f3d; border-radius:12px; padding:10px 12px; min-height:112px;
+       margin-bottom:.5rem; overflow:hidden;}
+.tile, .tile * {word-break:normal; overflow-wrap:normal; hyphens:none;}   /* wrap at spaces, never mid-word */
+.tile .lbl {font-size:.68rem; color:#9aa3b5; text-transform:uppercase; letter-spacing:.4px; line-height:1.3;
+            min-height:1.8em;}
+.tile .val {font-size:clamp(1rem, 1.5vw, 1.4rem); font-weight:700; color:#f1f3f8; line-height:1.2; margin:2px 0;}
+.tile .val.long {font-size:clamp(.85rem, 1.1vw, 1.05rem); letter-spacing:.2px;}
+.tile .sub {font-size:.72rem; color:#9aa3b5; line-height:1.3;}
 .logline {font-family: ui-monospace, Consolas, monospace; font-size:.80rem; padding:3px 0;
           border-bottom:1px solid #222736;}
 .logline b {color:#f4a261;}
 </style>""", unsafe_allow_html=True)
 
 
-def banner(text="SIMULATED DATA — virtual patient in a MuJoCo physics simulation; not clinical measurements"):
-    st.markdown(f'<div class="sim-banner">⚠️ {text}</div>', unsafe_allow_html=True)
-
-
 def tile(col, label, value, sub="", color=None):
     style = f' style="color:{color}"' if color else ""
-    col.markdown(f'<div class="tile"><div class="lbl">{label}</div><div class="val"{style}>{value}</div>'
+    cls = "val long" if len(str(value)) > 8 else "val"     # e.g. controller mode names
+    col.markdown(f'<div class="tile"><div class="lbl">{label}</div><div class="{cls}"{style}>{value}</div>'
                  f'<div class="sub">{sub}</div></div>', unsafe_allow_html=True)
 
 
@@ -187,13 +186,17 @@ def live_tab(cfg):
     ss.speed = c4.select_slider("Speed", options=[0.5, 1.0, 2.0, 4.0], value=1.0,
                                 format_func=lambda v: f"{v:g}× real time", label_visibility="collapsed")
     c5.caption("Start a session, then intervene live: inject fatigue, unplug the insole, or hot-swap the controller.")
+    # The live loop never lets the script run finish, so Streamlit never clears elements left over from the
+    # previous run. Keep the intro in one slot that a session run explicitly empties.
+    intro = st.empty()
     if "live" not in ss:
-        st.info("Configure the patient and controller in the sidebar, then press **Start new session**. "
-                "The MuJoCo world, the virtual patient, the sensors and the exoskeleton controller then run live.")
-        img = RESULTS_DIR / "phase1_side.png"
-        if img.exists():
-            st.image(str(img), caption="The simulated world: treadmill, body-weight-support harness, "
-                                       "right-knee exoskeleton (SIMULATED)", width="stretch")
+        with intro.container():
+            st.info("Configure the patient and controller in the sidebar, then press **Start new session**. "
+                    "The MuJoCo world, the virtual patient, the sensors and the exoskeleton controller then run live.")
+            img = RESULTS_DIR / "phase1_side.png"
+            if img.exists():
+                st.image(str(img), caption="The simulated world: treadmill, body-weight-support harness, "
+                                           "right-knee exoskeleton (SIMULATED)", width="stretch")
         return
     st.fragment(live_panel)()
 
@@ -205,15 +208,15 @@ def live_panel():
     left, right = st.columns([1.05, 1])
     with left:
         img_ph = st.empty()
-        b1, b2, b3 = st.columns([1, 1, 1.4])
-        if b1.button("💤 Inject fatigue (+30%)", width="stretch"):
+        b1, b2 = st.columns(2)
+        if b1.button("💤 Inject fatigue (+30%)", width="stretch", disabled=s.done):
             s.inject_fatigue(0.3)
             s.controller.log(s.time, "USER: fatigue injected (+30 %) by the therapist")
-        if b2.button("🔌 Unplug insole", width="stretch"):
+        if b2.button("🔌 Unplug insole", width="stretch", disabled=s.done):
             s.fail_insole()
             s.controller.log(s.time, "USER: insole disconnected")
-        swap = b3.selectbox("Hot-swap controller", list(KIND_LABEL), format_func=KIND_LABEL.get,
-                            index=list(KIND_LABEL).index(cfg["kind"]), key=f"swap_{id(s)}")
+        swap = st.selectbox("Hot-swap controller", list(KIND_LABEL), format_func=KIND_LABEL.get,
+                            index=list(KIND_LABEL).index(cfg["kind"]), key=f"swap_{id(s)}", disabled=s.done)
         if swap != cfg["kind"]:
             events = list(s.controller.events)
             cfg = ss.live_cfg = with_kind(cfg, swap)
@@ -327,7 +330,7 @@ def perception_figure(log: pd.DataFrame) -> go.Figure:
     g = log[(log["t"] > log["t"].iloc[-1] - 4.0)]
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1,
                         subplot_titles=("Gait phase: simulator truth vs exo estimate",
-                                        "Patient muscle torque: truth vs inverse-dynamics estimate (N·m)"))
+                                        "Patient torque: truth vs estimate (N·m)"))
     fig.add_trace(go.Scatter(x=g["t"], y=g["phase"], name="true phase", line=dict(color="#6c757d", width=5)), 1, 1)
     fig.add_trace(go.Scatter(x=g["t"], y=g["phase_hat"], name="estimated phase", line=dict(color="#e8eaf0")), 1, 1)
     fig.add_trace(go.Scatter(x=g["t"], y=g["tau_patient"], name="true torque", line=dict(color="#6c757d", width=5)), 2, 1)
@@ -383,7 +386,8 @@ def analysis_tab(cfg):
     with a:
         if R["skeleton"]:
             st.plotly_chart(skeleton_animation(R["skeleton"][-300:], R["tau_max"],
-                                               "Interactive 3D replay (drag to rotate)"), key="skel")
+                                               "Interactive 3D replay (drag to rotate)"), key="skel",
+                            config={"scrollZoom": False})
     with b:
         if R["video"]:
             st.video(R["video"])
@@ -459,15 +463,18 @@ def comparison_view(runs: dict):
     keys = [("Knee RMSE vs normative (deg)", "Knee RMSE (deg)"), ("Strides with knee buckling (%)", "Buckling strides (%)"),
             ("Toe scuffs per stride", "Toe scuffs / stride"), ("Assistance ratio (%)", "Exo share of torque (%)"),
             ("Final effort (%)", "Patient effort at end (%)"), ("Exo torque RMS (N·m)", "Exo torque RMS (N·m)")]
-    fig = make_subplots(rows=1, cols=len(keys), subplot_titles=[k[1] for k in keys])
+    fmt = {"Toe scuffs per stride": "{:.2f}"}
+    fig = make_subplots(rows=2, cols=3, subplot_titles=[k[1] for k in keys], vertical_spacing=0.2,
+                        horizontal_spacing=0.07)
     for j, (key, _) in enumerate(keys):
         for k, run in runs.items():
             v = run["metrics"].get(key, np.nan)
             fig.add_trace(go.Bar(x=[KIND_LABEL[k].split()[0]], y=[v], marker_color=KIND_COLOR[k], name=KIND_LABEL[k],
-                                 showlegend=(j == 0), text=[f"{v:.1f}"], textposition="outside",
-                                 cliponaxis=False), 1, j + 1)
-    fig.update_layout(template="plotly_dark", height=360, margin=dict(l=10, r=10, t=60, b=10),
-                      legend=dict(orientation="h", y=-0.15))
+                                 showlegend=(j == 0), text=[fmt.get(key, "{:.1f}").format(v)], textposition="outside",
+                                 cliponaxis=False), j // 3 + 1, j % 3 + 1)
+    fig.update_yaxes(rangemode="tozero")
+    fig.update_layout(template="plotly_dark", height=560, margin=dict(l=10, r=10, t=50, b=10),
+                      legend=dict(orientation="h", y=-0.08))
     st.plotly_chart(fig, key="cmp_bars")
     a, b = st.columns([1.2, 1])
     pct = np.linspace(0, 100, 101)
@@ -570,7 +577,6 @@ insole switches emulated from gait events. **All results are simulated** and are
 def main():
     cfg = sidebar()
     st.markdown("## 🦿 Cognitive Exoskeleton for Knee Rehabilitation")
-    banner()
     tabs = st.tabs(["🎥 Live Simulation", "📊 Session Analysis", "⚖ Controller Comparison", "🧠 How it works"])
     with tabs[0]:
         live_tab(cfg)

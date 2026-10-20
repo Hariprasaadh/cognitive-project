@@ -29,7 +29,7 @@ def test_dashboard_renders_and_runs_headless_session():
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=180)
     at.run()
     assert not at.exception
-    assert any("SIMULATED" in m.value for m in at.markdown)          # banner on the page
+    assert any("SIMULATED" in c.value for c in at.sidebar.caption)  # simulation disclaimer in the sidebar
     at.sidebar.slider[-1].set_value(10)                                 # shortest session
     next(b for b in at.button if "headless" in b.label).click()
     at.run()

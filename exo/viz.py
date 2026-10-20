@@ -63,12 +63,14 @@ def skeleton_animation(frames: list, tau_max: float = 60.0, title: str = "") -> 
              for i, f in enumerate(frames[::stride])]
     fig.update_layout(
         title=title, template="plotly_dark", height=620, margin=dict(l=0, r=0, t=50, b=0),
-        legend=dict(orientation="v", y=0.9, x=0.0, font=dict(size=10), bgcolor="rgba(0,0,0,0.3)"),
+        legend=dict(orientation="v", y=0.98, x=0.98, xanchor="right", yanchor="top", font=dict(size=10),
+                    bgcolor="rgba(0,0,0,0.3)"),
         scene=dict(xaxis=dict(range=[-0.9, 0.9], title="x (m, walking direction)"),
                    yaxis=dict(range=[-0.6, 0.6], title="y (m)"), zaxis=dict(range=[0, 1.9], title="z (m)"),
                    aspectmode="manual", aspectratio=dict(x=1, y=0.67, z=1.05),
                    camera=dict(eye=dict(x=0.9, y=-1.25, z=0.35), center=dict(x=0, y=0, z=-0.05))),
-        updatemenus=[dict(type="buttons", showactive=False, x=0.02, y=1.0, xanchor="left", yanchor="top",
+        updatemenus=[dict(type="buttons", direction="left", showactive=False, x=0.02, y=0.98, xanchor="left",
+                          yanchor="top", pad=dict(r=6, t=0),
                           buttons=[dict(label="▶ Play", method="animate",
                                         args=[None, dict(frame=dict(duration=dur, redraw=True), fromcurrent=True,
                                                          transition=dict(duration=0))]),
